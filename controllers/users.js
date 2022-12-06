@@ -6,14 +6,14 @@ require('dotenv').config()
 const bcrypt = require('bcrypt')
 
 router.get('/new', (req, res)=>{
-    res.render('users/new.ejs')
+    res.render('users/new.ejs', { user: res.locals.user })
 })
 
 router.post('/', async (req, res)=>{
     const [newUser, created] = await db.user.findOrCreate({where:{email: req.body.email}})
     if(!created){
         console.log('user already exists')
-        res.render('users/login.ejs', {error: 'Looks like you already have an account! Try logging in :)'})
+		res.redirect('/users/login?message=Please log into your account to continue.')
     } else {
         const hashedPassword = bcrypt.hashSync(req.body.password, 10)
         newUser.password = hashedPassword
@@ -26,14 +26,18 @@ router.post('/', async (req, res)=>{
 })
 
 router.get('/login', (req, res)=>{
-    res.render('users/login.ejs')
+	res.render('users/login.ejs', { 
+		user: res.locals.user,
+		message: req.query.message ? req.query.message : null
+	})
 })
 
 router.post('/login', async (req, res)=>{
     const user = await db.user.findOne({where: {email: req.body.email}})
+	const noLoginMessage = 'Incorrect username or password'
     if(!user){
-        console.log('user not found')
-        res.render('users/login', { error: "Invalid email/password" })
+        console.log('user not found')	
+		res.redirect('/users/login?message=' + noLoginMessage)
     } else if(!bcrypt.compareSync(req.body.password, user.password)) {
         console.log('password incorrect')
         res.render('users/login', { error: "Invalid email/password" })
@@ -53,7 +57,13 @@ router.get('/logout', (req, res)=>{
 })
 
 router.get('/profile', (req, res)=>{
-    res.render('users/profile.ejs')
+	// if the user is not logged ... we need to redirect to the login form
+    if (!res.locals.user) {
+        res.redirect('/users/login?message=You must authenticate before you are authorized to view this resource.')
+	} else {
+		// otherwise, show them their profile
+		res.render('users/profile.ejs', { user: res.locals.user })
+	}
 })
 
 module.exports = router
